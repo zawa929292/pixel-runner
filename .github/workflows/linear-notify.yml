@@ -2,7 +2,8 @@ name: Linear Notify
 # 人の対応が必要になった Linear Issue（Triage / Design Review / In Review / Needs Human）を Slack に通知する
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    # 毎時 0 分の混雑を避けてオフセットする（GitHub の cron はベストエフォート）
+    - cron: '1-59/5 * * * *'
   workflow_dispatch:
 concurrency: { group: linear-notify }
 permissions:
