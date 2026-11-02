@@ -2,16 +2,21 @@ import Phaser from 'phaser';
 import { PLAYER, WORLD } from '../core/config';
 import { createInitialState, step, type GameState } from '../core/state';
 
+const OBSTACLE_COLOR = 0x8b4513;
+
 /** 描画と入力の受け付けだけを担当し、ルールは src/core に委譲する。 */
 export class GameScene extends Phaser.Scene {
-  state: GameState = createInitialState();
+  state: GameState;
   private playerRect!: Phaser.GameObjects.Rectangle;
+  /** 障害物 id → 描画用の矩形 */
+  private obstacleRects = new Map<number, Phaser.GameObjects.Rectangle>();
   private message!: Phaser.GameObjects.Text;
   /** 前フレーム以降に SPACE が新たに押されたか */
   private pendingJump = false;
 
-  constructor() {
+  constructor(seed: number) {
     super('GameScene');
+    this.state = createInitialState(seed);
   }
 
   create(): void {
@@ -33,6 +38,28 @@ export class GameScene extends Phaser.Scene {
     this.pendingJump = false;
 
     this.playerRect.setPosition(this.state.player.x, this.state.player.y);
+    this.syncObstacles();
     this.message.setVisible(this.state.status === 'ready');
+  }
+
+  /** state.obstacles を id で突き合わせ、矩形の作成・更新・破棄を行う。 */
+  private syncObstacles(): void {
+    const alive = new Set<number>();
+    for (const o of this.state.obstacles) {
+      alive.add(o.id);
+      const rect = this.obstacleRects.get(o.id);
+      if (rect) {
+        rect.setPosition(o.x, WORLD.groundY);
+        rect.setSize(o.width, o.height);
+      } else {
+        this.obstacleRects.set(o.id, this.add.rectangle(o.x, WORLD.groundY, o.width, o.height, OBSTACLE_COLOR).setOrigin(0, 1));
+      }
+    }
+    for (const [id, rect] of this.obstacleRects) {
+      if (!alive.has(id)) {
+        rect.destroy();
+        this.obstacleRects.delete(id);
+      }
+    }
   }
 }
