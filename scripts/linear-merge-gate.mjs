@@ -2,6 +2,7 @@
 // Linear で人間が `Merge Approved` にした Issue の PR を、CI が green ならマージする。
 import { execFileSync } from 'node:child_process';
 import { comment, issuesInState, moveIssue, prNumbersOf } from './linear.mjs';
+import { notifySlack } from './slack.mjs';
 
 const gh = (...args) => execFileSync('gh', args, { encoding: 'utf8' });
 
@@ -34,6 +35,7 @@ for (const issue of await issuesInState('Merge Approved')) {
     }
     gh('pr', 'merge', String(pr), '--squash', '--delete-branch');
     console.log(`${issue.identifier}: merged PR #${pr}`);
+    await notifySlack(`✅ *マージしました* — ${issue.identifier}: ${issue.title}（PR #${pr}）。デプロイを開始します`);
     merged++;
     // マージ後は Linear の GitHub 連携が Issue を Done に遷移させる
   }

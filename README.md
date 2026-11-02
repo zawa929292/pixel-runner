@@ -29,4 +29,4 @@ npx playwright install chromium
 npm run dev       # http://localhost:5173
 npm run verify
 ```
-Linear 側の準備は [docs/linear-setup.md](docs/linear-setup.md)。
+Linear 側の準備は [docs/linear-setup.md](docs/linear-setup.md)、Slack 通知は [docs/notifications.md](docs/notifications.md)。
