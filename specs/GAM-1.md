@@ -68,7 +68,7 @@ export function updatePlayer(player: PlayerState, dtMs: number): PlayerState
 3. **等加速度の厳密解で積分する**: `y' = y + vy*t + 0.5*G*t²`、`vy' = vy + G*t`
    - 半陰的 Euler ではなく厳密解を使う理由: 加速度が一定なら dt をどう分割しても、同じ時刻での位置・速度が（浮動小数誤差の範囲で）一致する。これにより AC-4 を厳密に満たせる
 4. 着地判定: `y' >= WORLD.groundY` かつ `vy' >= 0` なら `{ y: WORLD.groundY, vy: 0, onGround: true }` にスナップする（AC-7, AC-8）
-   - 着地は「地面を越えたフレームで地面に合わせる」。そのため着地時刻は最大 1 フレーム遅れる（AC-6 の許容範囲 `[T, T+dt)` はこれを前提にしている）
+   - 着地は「地面を越えたフレームで地面に合わせる」。そのため着地時刻は最大 1 フレーム遅れる（AC-6 の許容範囲 `[T, T+dt]`（± 1e-6）はこれを前提にしている）
 5. それ以外は `{ ...player, y: y', vy: vy', onGround: false }` を返す
 - `x` は変更しない
 
