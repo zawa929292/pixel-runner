@@ -1,0 +1,75 @@
+name: Security Review
+# 検証ハーネス: PR の差分を Claude でセキュリティ監査し、HIGH が残ればチェックを失敗させる（GAM-7）
+# プロンプトは anthropics/claude-code-security-review（MIT）から取り込み: .github/security-review/
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+concurrency:
+  group: security-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  audit:
+    name: security-audit
+    if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read
+      id-token: write   # ai-review.yml と同じ。github_token を渡して不要と分かれば削る（確認事項 Q6）
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, persist-credentials: false }
+      - id: schema
+        run: echo "json=$(jq -c . .github/security-review/findings.schema.json)" >> "$GITHUB_OUTPUT"
+      - id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}   # 読み取り専用の GITHUB_TOKEN を使う（確認事項 Q6）
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Read .github/security-review/audit-prompt.md and follow it exactly.
+            It references .github/security-review/false-positive-filtering.md,
+            .github/security-review/project-scan-instructions.md and
+            .github/security-review/findings.schema.json; read them too.
+          claude_args: |
+            --allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --max-turns 40
+            --json-schema '${{ steps.schema.outputs.json }}'
+      - name: save findings
+        if: always()
+        run: printf '%s' "$OUT" > security-findings.json
+        env:
+          OUT: ${{ steps.claude.outputs.structured_output }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: security-findings, path: security-findings.json, retention-days: 7 }
+  report:
+    name: security-gate
+    needs: audit
+    if: ${{ always() && !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with: { sparse-checkout: scripts/security-review, persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with: { name: security-findings }
+      - run: node scripts/security-review/report.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          AUDIT_RESULT: ${{ needs.audit.result }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+          FINDINGS_PATH: security-findings.json

@@ -52,3 +52,15 @@ flowchart LR
 ## 人の指示の見分け方
 Linear MCP は人のアカウントで動くため、投稿者では区別できない。
 **AI のコメントは必ず `🤖` で始める**。最新の `🤖` コメントより新しい、`🤖` で始まらないコメントを「未対応の人の指示」とみなす。
+
+## PR 上の自動チェック
+PR ごとに次のチェックが並列に走る。merge-gate（`scripts/linear-merge-gate.mjs`）は失敗したチェックがあると自動マージせず `Needs Human` にする。
+
+| チェック | ワークフロー | 失敗条件 | 失敗時 |
+|---|---|---|---|
+| `CI / verify` | ci.yml | `npm run verify` 失敗 | マージゲートが Needs Human |
+| `CI / npm-audit` | ci.yml | high 以上の脆弱な依存 | 同上 |
+| `AI Review / review` | ai-review.yml | （失敗させない。コメントのみ） | — |
+| `Security Review / security-gate` | security-review.yml | HIGH の指摘、監査未完了、fork PR | 同上 |
+
+取り込み元と更新手順: `.github/security-review/` の各ファイルのヘッダーにある anthropics/claude-code-security-review の SHA を見て、上流の差分を確認してから取り込み直す（`scripts/security-review/findings.mjs` の除外ルールの移植も同様）。

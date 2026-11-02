@@ -1,0 +1,38 @@
+{
+  "title": "Pixel Runner security audit output (derived from the anthropics/claude-code-security-review output format at 0c6a49f1fa56a1d472575da86a94dbc1edb78eda, MIT)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["findings", "analysis_summary"],
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "line", "severity", "category", "description", "exploit_scenario", "recommendation", "confidence"],
+        "properties": {
+          "file": { "type": "string", "minLength": 1, "description": "Repository-relative path as shown in the PR diff, without a leading ./" },
+          "line": { "type": ["integer", "null"], "minimum": 1, "description": "Line number in the new version of the file, or null" },
+          "severity": { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW"] },
+          "category": { "type": "string", "minLength": 1, "description": "Snake case category such as code_injection, xss, command_injection" },
+          "description": { "type": "string" },
+          "exploit_scenario": { "type": "string" },
+          "recommendation": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1, "description": "Confidence on a 0-1 scale (1-10 score divided by 10)" }
+        }
+      }
+    },
+    "analysis_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files_reviewed", "high_severity", "medium_severity", "low_severity", "review_completed"],
+      "properties": {
+        "files_reviewed": { "type": "integer", "minimum": 0 },
+        "high_severity": { "type": "integer", "minimum": 0 },
+        "medium_severity": { "type": "integer", "minimum": 0 },
+        "low_severity": { "type": "integer", "minimum": 0 },
+        "review_completed": { "type": "boolean" }
+      }
+    }
+  }
+}
