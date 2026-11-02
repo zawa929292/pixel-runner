@@ -1,0 +1,24 @@
+name: フィードバック / 不具合報告
+description: プレイ中に気づいた不具合や要望（Linear の Triage に自動で取り込まれます）
+labels: [feedback]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 種類
+      options: [不具合, 要望, その他]
+    validations: { required: true }
+  - type: textarea
+    id: detail
+    attributes:
+      label: 内容
+      description: 何が起きたか / どうしてほしいか
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順（不具合の場合）
+  - type: input
+    id: browser
+    attributes:
+      label: ブラウザ / OS

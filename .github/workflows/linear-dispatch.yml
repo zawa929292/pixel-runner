@@ -1,0 +1,41 @@
+name: Linear Dispatch (Phase 2)
+# Linear で `Approved` + `ai-ready` の Issue を検知し、Actions 上の Claude が実装して PR を作る。
+# Phase 1 の運用が安定するまで schedule はコメントアウトし、手動実行のみ。
+on:
+  # schedule:
+  #   - cron: '*/15 * * * *'
+  workflow_dispatch:
+concurrency: { group: linear-dispatch }
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - id: pick
+        run: node scripts/linear-pick-issue.mjs
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+      - if: steps.pick.outputs.issue != ''
+        run: npm ci && npx playwright install --with-deps chromium
+      - if: steps.pick.outputs.issue != ''
+        uses: anthropics/claude-code-action@v1
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            .claude/commands/implement.md の手順で Linear Issue ${{ steps.pick.outputs.issue }} を実装し PR を作成してください。
+            Issue はディスパッチャが既に `In Progress` に移動済みなので、事前チェックの状態確認は `In Progress` で可とします。
+          claude_args: |
+            --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer ${{ secrets.LINEAR_API_KEY }}"}}}}'
+            --allowedTools "Read,Edit,Write,Grep,Glob,Task,mcp__linear,Bash(npm run *),Bash(npm test),Bash(npx *),Bash(git *),Bash(gh pr create:*),Bash(gh pr view:*)"
+            --max-turns 120

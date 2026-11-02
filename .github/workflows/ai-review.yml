@@ -1,0 +1,28 @@
+name: AI Review
+# 品質改善ループ（PR 上）: Claude が spec と規約に照らしてレビューする
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+jobs:
+  review:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            .claude/agents/reviewer.md の観点と返却フォーマットに従ってこの PR をレビューしてください。
+            PR タイトルの GAM-n に対応する specs/GAM-n.md を受入条件の基準にすること。
+            具体的な行への指摘は inline comment、総評（判定 PASS/NEEDS_FIX を含む）は `gh pr comment` で投稿してください。
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob"
