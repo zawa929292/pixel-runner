@@ -3,11 +3,14 @@ import {
   COMMENT_FIELD_MAX,
   MIN_CONFIDENCE,
   SUMMARY_MARKER,
+  REDACTED,
   buildInlineComments,
+  changedFilesError,
   decideGate,
   filterFindings,
   fingerprint,
   getExclusionReason,
+  normalizeFindingPath,
   parseAuditOutput,
   parseDiffRightLines,
   renderSummary,
@@ -19,7 +22,7 @@ import {
 
 const MIN = MIN_CONFIDENCE;
 const MARK = SUMMARY_MARKER;
-const ZWSP = '​';
+const ZWSP = '\u200B';
 
 const BASE: Finding = {
   file: 'src/main.ts',
@@ -345,5 +348,101 @@ describe('GAM-7 PR への出力', () => {
     for (const [changedFiles, expected] of cases) {
       expect(touchesHarness(changedFiles), changedFiles.join(',')).toBe(expected);
     }
+  });
+});
+
+// レビュー指摘（H1 / M1 / M3 / L4）への追加テスト。既存 AC の期待値は変えない
+describe('GAM-7 レビュー指摘への追加', () => {
+  it('AC-6 (H1): ./ 付き・絶対パス・バックスラッシュの file を変更ファイルに寄せてから判定する', () => {
+    const changedFiles = ['src/a.ts', 'tests/unit/x.test.ts', 'docs/a.md'];
+    const findings = [
+      F({ file: './src/a.ts' }),
+      F({ file: '/home/runner/work/x/x/src/a.ts' }),
+      F({ file: '././src/a.ts' }),
+      F({ file: '.\\src\\a.ts' }),
+      F({ file: './tests/unit/x.test.ts' }),
+      F({ file: '/home/runner/work/x/x/docs/a.md' }),
+      F({ file: '/home/runner/work/x/x/src/zzz.ts' }),
+    ];
+    const snapshot = structuredClone(findings);
+
+    const { kept, excluded } = filterFindings(findings, { changedFiles });
+
+    expect(kept).toEqual([0, 1, 2, 3].map(() => F({ file: 'src/a.ts' })));
+    expect(excluded.map((e) => [e.finding.file, e.reason])).toEqual([
+      ['tests/unit/x.test.ts', 'Test-only file'],
+      ['docs/a.md', 'Finding in Markdown documentation file'],
+      ['/home/runner/work/x/x/src/zzz.ts', 'Not in PR diff'],
+    ]);
+    expect(findings).toEqual(snapshot);
+
+    // 正規化後の file が inline の path に使われる（src/a.ts の 2 行目は差分の追加行）
+    const comments = buildInlineComments(
+      filterFindings([F({ file: '/home/runner/work/x/x/src/a.ts', line: 2 })], { changedFiles }).kept,
+      parseDiffRightLines(DIFF),
+      [],
+    );
+    expect(comments.map((c) => [c.path, c.line])).toEqual([['src/a.ts', 2]]);
+  });
+
+  it('AC-6 (H1): normalizeFindingPath は絶対パスを末尾一致する最長の changedFile に寄せる', () => {
+    const changed = ['a.ts', 'src/a.ts'];
+    expect(normalizeFindingPath('/w/repo/src/a.ts', changed)).toBe('src/a.ts');
+    expect(normalizeFindingPath('/w/repo/a.ts', changed)).toBe('a.ts');
+    expect(normalizeFindingPath('C:\\w\\repo\\src\\a.ts', changed)).toBe('src/a.ts');
+    expect(normalizeFindingPath('src/a.ts', changed)).toBe('src/a.ts');
+    expect(normalizeFindingPath('/w/repo/other.ts', changed)).toBe('/w/repo/other.ts');
+  });
+
+  it('AC-6 (L4): 変更ファイルが空で指摘があるときだけ未完了の理由を返す', () => {
+    const err = changedFilesError([], 1);
+    expect(typeof err).toBe('string');
+    expect((err ?? '').length).toBeGreaterThan(0);
+    expect(changedFilesError([], 0)).toBeNull();
+    expect(changedFilesError(['src/a.ts'], 1)).toBeNull();
+  });
+
+  it('AC-10 (M1): fingerprint の file・category は安全な文字だけにし、コメントを閉じさせない', () => {
+    const fp = fingerprint(F({ file: 'src/a.ts --> x', category: 'x --!> @octocat <img src=x onerror=alert(1)> ---' }));
+    expect(fp.startsWith('<!-- ')).toBe(true);
+    expect(fp.endsWith(' -->')).toBe(true);
+    const inner = fp.slice('<!-- '.length, -' -->'.length);
+    expect(inner).not.toMatch(/--|[<>@!\s]/);
+    // 既存の形式（AC-10）は変わらない
+    expect(fingerprint(F({}))).toBe('<!-- pixel-runner:sr:src/main.ts:10:code_injection -->');
+  });
+
+  it('AC-12 (M1): --!> も無害化し、inline コメントの中で HTML コメントが閉じるのは fingerprint の末尾だけ', () => {
+    expect(sanitizeForComment('a --!> b')).not.toContain('--!>');
+    const evil = F({ category: 'xss --!> @octocat', description: 'd --!> <b>x</b>', recommendation: 'r -->' });
+    const [c] = buildInlineComments([evil], new Map([['src/main.ts', new Set([10])]]), []);
+    expect(c.body).not.toContain('--!>');
+    expect(c.body.split('-->').length - 1).toBe(1);
+    expect(c.body.endsWith(' -->')).toBe(true);
+    expect(c.body).not.toMatch(/@octocat/);
+  });
+
+  it('AC-12 (M3): トークン形式の文字列を [REDACTED] に置き換える', () => {
+    // 実在のトークンに見えないよう連結で組み立てる（push protection の誤検知を避ける）
+    const tokens = [
+      'sk-' + 'ant-oat01-' + 'FAKEfake_0123-xyz',
+      'gh' + 'p_' + 'FAKE0123456789abcdef',
+      'gh' + 's_' + 'FAKE0123456789abcdef',
+      'github' + '_pat_' + '11FAKE_0123456789',
+      'lin' + '_api_' + 'FAKE0123456789',
+      'xox' + 'b-' + '1234-5678-FAKE',
+    ];
+    for (const t of tokens) {
+      const s = sanitizeForComment(`leaked ${t} here`);
+      expect(s, t).toBe(`leaked ${REDACTED} here`);
+    }
+    const evil = F({ description: `token ${tokens[0]}`, exploit_scenario: tokens[1], recommendation: tokens[3] });
+    const summary = renderSummary({ status: 'completed', headSha: 'abc1234', gate: decideGate([evil]), kept: [evil], excluded: [] });
+    const [c] = buildInlineComments([evil], new Map([['src/main.ts', new Set([10])]]), []);
+    for (const out of [summary, c.body]) {
+      for (const t of tokens.slice(0, 4)) expect(out).not.toContain(t);
+    }
+    expect(summary).toContain(REDACTED);
+    expect(c.body).toContain(REDACTED);
   });
 });

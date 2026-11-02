@@ -58,7 +58,7 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-        with: { sparse-checkout: scripts/security-review }
+        with: { sparse-checkout: scripts/security-review, persist-credentials: false }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - uses: actions/download-artifact@v4

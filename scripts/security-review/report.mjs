@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import {
   SUMMARY_MARKER,
   buildInlineComments,
+  changedFilesError,
   decideGate,
   filterFindings,
   parseAuditOutput,
@@ -47,12 +48,12 @@ const parseJsonLines = (out) =>
     .filter((l) => l.trim() !== '')
     .map((l) => JSON.parse(l));
 
-/** 総評は PR 上に常に 1 件: マーカー付きの bot コメントがあれば PATCH、なければ POST */
+/** 総評は PR 上に常に 1 件: マーカーで始まる bot コメントがあれば PATCH、なければ POST */
 function upsertSummary(body) {
   const comments = parseJsonLines(
     gh(['api', '--paginate', `repos/${REPO}/issues/${PR_NUMBER}/comments`, '--jq', '.[] | {id: .id, login: .user.login, body: .body} | @json']),
   );
-  const existing = comments.find((c) => c.login === BOT_LOGIN && typeof c.body === 'string' && c.body.includes(SUMMARY_MARKER));
+  const existing = comments.find((c) => c.login === BOT_LOGIN && typeof c.body === 'string' && c.body.startsWith(SUMMARY_MARKER));
   const payload = JSON.stringify({ body });
   if (existing) gh(['api', '-X', 'PATCH', `repos/${REPO}/issues/comments/${existing.id}`, '--input', '-'], payload);
   else gh(['api', '-X', 'POST', `repos/${REPO}/issues/${PR_NUMBER}/comments`, '--input', '-'], payload);
@@ -129,6 +130,13 @@ function main() {
   const parsed = parseAuditOutput(raw);
   if (!parsed.ok) {
     postSummary({ status: 'incomplete', error: parsed.error });
+    return 1;
+  }
+
+  // 変更ファイルが空なのに指摘がある → 取得失敗とみなす（全件「Not in PR diff」で success になるのを防ぐ）
+  const filesError = changedFilesError(changedFiles, parsed.value.findings.length);
+  if (filesError) {
+    postSummary({ status: 'incomplete', error: filesError });
     return 1;
   }
 

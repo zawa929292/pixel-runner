@@ -16,7 +16,7 @@ const CONFIDENCE_UNIT_MAX = 1;
 const CONFIDENCE_SCORE_MAX = 10;
 /** テストのみのファイル（上流 HARD EXCLUSIONS 11 を決定的に適用する。本リポジトリの追加） */
 const TEST_PATH_PREFIX = 'tests/';
-const ZERO_WIDTH_SPACE = '​';
+const ZERO_WIDTH_SPACE = '\u200B';
 const ELLIPSIS = '…';
 
 // ---------------------------------------------------------------------------
@@ -208,11 +208,40 @@ export function getExclusionReason(finding) {
 // filterFindings / decideGate
 // ---------------------------------------------------------------------------
 
+const ABSOLUTE_PATH_RE = /^(?:\/|[A-Za-z]:\/)/;
+
+/**
+ * Claude が返す file を PR の変更ファイルの表記に寄せる（完全一致だけだと HIGH が「Not in PR diff」で落ちる＝fail-open）。
+ * `\` → `/`、先頭の `./` を繰り返し除去。絶対パスは「末尾が `/` + changedFile」に一致する changedFile（最長一致）に寄せる。
+ * GITHUB_WORKSPACE には依存しない。一致しなければ正規化した文字列をそのまま返す
+ */
+export function normalizeFindingPath(file, changedFiles) {
+  let p = String(file).replaceAll('\\', '/');
+  while (p.startsWith('./')) p = p.slice(2);
+  if (ABSOLUTE_PATH_RE.test(p)) {
+    let best = null;
+    for (const c of changedFiles) {
+      if (p.endsWith(`/${c}`) && (best === null || c.length > best.length)) best = c;
+    }
+    if (best !== null) p = best;
+  }
+  return p;
+}
+
+/** changedFiles が空なのに指摘がある＝変更ファイルの取得に失敗している。全件が「Not in PR diff」で落ちるのを防ぐ（fail-closed） */
+export function changedFilesError(changedFiles, findingsCount) {
+  return changedFiles.length === 0 && findingsCount > 0
+    ? `PR changed files list is empty but the audit returned ${findingsCount} finding(s)`
+    : null;
+}
+
 export function filterFindings(findings, { changedFiles, minConfidence = MIN_CONFIDENCE }) {
   const changed = new Set(changedFiles);
   const kept = [];
   const excluded = [];
-  for (const finding of findings) {
+  for (const original of findings) {
+    const file = normalizeFindingPath(original.file, changedFiles);
+    const finding = file === original.file ? original : { ...original, file };
     let reason;
     if (!changed.has(finding.file)) reason = 'Not in PR diff';
     else if (finding.file.startsWith(TEST_PATH_PREFIX)) reason = 'Test-only file';
@@ -305,18 +334,40 @@ export function parseDiffRightLines(diff) {
 // コメント生成
 // ---------------------------------------------------------------------------
 
-/** HTML コメントの開始・終了を無害化する（fingerprint や総評のマーカーを偽装させない） */
-const escapeHtmlComment = (text) => text.replaceAll('<!--', '&lt;!--').replaceAll('-->', '--&gt;');
+/** HTML コメントの開始・終了を無害化する（fingerprint や総評のマーカーを偽装させない）。`--!>` もコメントを閉じる */
+const escapeHtmlComment = (text) =>
+  text.replaceAll('<!--', '&lt;!--').replaceAll('--!>', '--!&gt;').replaceAll('-->', '--&gt;');
+
+/**
+ * トークン形式の文字列（多層防御: プロンプトインジェクションで秘密情報を description 等に載せさせ、
+ * PR コメントで公開させる経路を塞ぐ）
+ */
+export const REDACTED = '[REDACTED]';
+const SECRET_PATTERNS = [
+  /sk-ant-[A-Za-z0-9_-]+/g, // Anthropic API key / OAuth token
+  /gh[pousr]_[A-Za-z0-9]+/g, // GitHub token
+  /github_pat_[A-Za-z0-9_]+/g, // GitHub fine-grained PAT
+  /lin_(?:api|oauth)_[A-Za-z0-9]+/g, // Linear API key
+  /xox[abpr]-[A-Za-z0-9-]+/g, // Slack token
+  /https:\/\/hooks\.slack\.com\/[A-Za-z0-9/_-]+/g, // Slack webhook URL
+  /AKIA[0-9A-Z]{16}/g, // AWS access key ID
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/g, // 秘密鍵
+];
+const redactSecrets = (text) => SECRET_PATTERNS.reduce((t, re) => t.replace(re, REDACTED), text);
 
 export function sanitizeForComment(text, maxLen = COMMENT_FIELD_MAX) {
-  const escaped = escapeHtmlComment(String(text ?? '').replaceAll('@', `@${ZERO_WIDTH_SPACE}`));
+  const escaped = escapeHtmlComment(redactSecrets(String(text ?? '')).replaceAll('@', `@${ZERO_WIDTH_SPACE}`));
   return escaped.length > maxLen ? `${escaped.slice(0, maxLen)}${ELLIPSIS}` : escaped;
 }
 
+/** fingerprint に入れる値: 安全な文字以外を `_` に、`--` を潰す（HTML コメントを閉じさせない） */
+const fingerprintField = (text) =>
+  redactSecrets(String(text))
+    .replace(/[^A-Za-z0-9_./-]/g, '_')
+    .replace(/--/g, '-_');
+
 export function fingerprint(finding) {
-  const file = escapeHtmlComment(String(finding.file));
-  const category = escapeHtmlComment(String(finding.category));
-  return `<!-- pixel-runner:sr:${file}:${finding.line ?? 0}:${category} -->`;
+  return `<!-- pixel-runner:sr:${fingerprintField(finding.file)}:${finding.line ?? 0}:${fingerprintField(finding.category)} -->`;
 }
 
 export function buildInlineComments(kept, rightLines, existingBodies) {

@@ -45,9 +45,15 @@ export const COMMENT_FIELD_MAX: number;
 export const SUMMARY_MARKER: string;
 /** ['.github/workflows/', '.github/security-review/', 'scripts/security-review/'] */
 export const HARNESS_PATHS: readonly string[];
+/** '[REDACTED]'（トークン形式の文字列の置換先） */
+export const REDACTED: string;
 
 export function parseAuditOutput(raw: string): { ok: true; value: AuditOutput } | { ok: false; error: string };
 export function getExclusionReason(finding: Finding): string | null;
+/** file を PR の変更ファイルの表記に寄せる（`\\`→`/`、先頭 `./` 除去、絶対パスは末尾一致する changedFile） */
+export function normalizeFindingPath(file: string, changedFiles: string[]): string;
+/** changedFiles が空なのに指摘があれば理由文字列（fail-closed）、それ以外は null */
+export function changedFilesError(changedFiles: string[], findingsCount: number): string | null;
 export function filterFindings(
   findings: Finding[],
   opts: { changedFiles: string[]; minConfidence?: number },

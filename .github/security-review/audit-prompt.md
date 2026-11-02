@@ -29,7 +29,7 @@ This section is specific to Pixel Runner and is not part of the upstream prompt.
 1. Obtain the PR metadata and diff:
    - `gh pr view <PR NUMBER> --json files,additions,deletions,changedFiles,baseRefName,headRefOid`
    - `gh pr diff <PR NUMBER>`
-2. Perform Phase 1 to Phase 3 of the "Upstream audit prompt" below. You may use `Read`, `Grep` and `Glob` to explore the repository (the PR head is checked out in the working directory).
+2. Perform Phase 1 to Phase 3 of the "Upstream audit prompt" below. You may use `Read`, `Grep` and `Glob` to explore the repository (the working directory is the GitHub-generated test merge commit `refs/pull/<PR NUMBER>/merge`, i.e. the PR head merged into the base branch, not the PR head commit itself; treat `gh pr diff` as the authoritative list of changes).
 3. Also examine the categories listed in `.github/security-review/project-scan-instructions.md`.
 4. **Phase 4 - False positive filtering.** For each candidate finding, apply `.github/security-review/false-positive-filtering.md` and assign a confidence score from 1 to 10. Drop every candidate whose score is below 8. For the remaining findings, output `confidence` on a 0-1 scale (score / 10, e.g. 9 -> 0.9).
 5. Your final output is the structured output defined by `.github/security-review/findings.schema.json`. `file` is the repository-relative path as shown in the diff (e.g. `src/main.ts`, no leading `./`), and `line` is the line number in the new version of the file (or `null` if no single line applies). If there are no findings, output `"findings": []` with `"review_completed": true`.
