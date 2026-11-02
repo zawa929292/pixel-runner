@@ -1,7 +1,7 @@
 # GAM-7 進捗ノート
 
 ## 現在の状態
-- フェーズ: review
+- フェーズ: pr / ci-verify
 - 修正反復: 0 / 5
 - 直近の失敗シグネチャ: なし
 
@@ -12,3 +12,5 @@
 ### 2026-11-02 16:50 [orchestrator] 合流: npm run verify green（lint / typecheck / unit 65 / e2e 4）。保護対象ファイル（ai-review.yml・merge gate・src・tests/e2e・.claude・package*.json・tsconfig）に差分なしを確認。reviewer へ。
 ### 2026-11-02 16:38 [reviewer] NEEDS_FIX — high 1 / medium 3 / low 7。high: filterFindings が finding.file を changedFiles と完全一致で比較しており、Claude が絶対パス（/home/runner/work/.../src/main.ts）や ./src/main.ts を返すと HIGH が「Not in PR diff」で除外され security-gate が SUCCESS になる（fail-open。node で再現済み）。パスの正規化とテストの追加が必要。medium: (1) fingerprint の category が無害化されず、HTML コメントが --!> で閉じられてメンションや HTML が表に出る (2) 上流の文面ベースの除外が HIGH にも効く（例: "eval ... denial of service" → DOS 理由で除外。上流どおりの挙動で spec でも指定済みなので人の判断事項） (3) Read の対象範囲が無制限で、プロンプトインジェクションによりシークレットを読ませて公開コメントに載せられる可能性（要確認。report.mjs でトークン形式の文字列を伏せることを推奨）。low: report ジョブの persist-credentials、id-token: write（Q6）、総評の上書き先を includes でなく startsWith で判定する、changedFiles が空のときの扱い、wrapper の「PR head is checked out」は実際は merge commit、「just read the code」の一文は残せた、npm-audit の permissions。取り込み（LICENSE 一致、HardExclusionRules の順序・正規表現・理由文字列、プロンプト抽出）、ci.yml（追加のみ）、AC-1〜14 のテストは問題なし。
 ### 2026-11-02 16:43 [implementer] fix: レビュー NEEDS_FIX の H1/M1/M3/L1/L3/L4/L5/L7 を修正 → verify green（unit 71 / e2e 4、修正反復 0 回で通過）。H1: normalizeFindingPath（`\`→`/`、先頭 `./` 除去、絶対パスは末尾一致する最長の changedFile に寄せる）を filterFindings の判定前に適用。M1: fingerprint の file/category を `[A-Za-z0-9_./-]` 以外 `_`・`--` を潰す、escapeHtmlComment に `--!>`。M3: sanitizeForComment と fingerprint でトークン形式を `[REDACTED]`。L1: report の checkout に persist-credentials: false。L3: 総評の上書き先を startsWith(MARK)。L4: changedFilesError（変更ファイル空かつ指摘あり→incomplete・exit 1）。L5: audit-prompt の wrapper（独自部分）を「checkout は refs/pull/N/merge のマージコミット」に訂正。L7: npm-audit に permissions: contents: read。既存 AC の期待値は不変、テストは追加のみ。M2・H1 の未一致 HIGH・L2・L6 は対応せず（人の判断待ち）。
+### 2026-11-02 16:44 [reviewer] APPROVE（再レビュー 2 周目、6c45b7f）— high 0 / medium 0 / low 3。H1・M1・M3・L1・L3・L4・L5・L7 の修正で指摘箇所が塞がっていることを確認。新しい fail-open なし（正規化は誤って寄せても指摘を残す側＝fail-closed の方向にしか働かず、REDACTED は表示だけでゲート判定に影響しない。fingerprint の変更で重複防止は壊れていない）。修正を 1 つずつ戻すとテストが落ちることも確認した（H1・M1・M3・L4）。low: (1) 「最長一致」の条件を外してもテストが通る（changed の並びが最長一致と同じ結果になるため。['src/a.ts','a.ts'] の順にする） (2) 末尾一致を絶対パスにしか使っていないので、pixel-runner/src/main.ts のような相対パスの前置きはまだ「Not in PR diff」で落ちる (3) 伏せ字はトークンを空白や符号化で分割されると効かない（多層防御なので許容）。人の判断待ち（M2、正規化しても一致しない HIGH の扱い、L2、L6）は引き続き Linear で確認すること。
+### 2026-11-02 17:20 [orchestrator] 品質改善 2 周目: reviewer APPROVE（high 0 / medium 0 / low 3: L-a 最長一致テストの並び、L-b 前置ディレクトリ付き相対パス、L-c 分割トークン）。low は PR に記載。人の判断待ち: M2、未一致 HIGH の扱い、L2、L6。PR 作成と [ci] AC-15〜18 の判定へ。
