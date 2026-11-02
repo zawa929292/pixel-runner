@@ -5,7 +5,7 @@
 ## コマンド
 - `npm run dev` — 開発サーバー
 - `npm run verify` — lint → typecheck → unit → e2e。**完了条件の機械判定はこれが green であること**
-- `npm run verify:unit` — lint → typecheck → unit（並列実装フェーズ用）
+- `npm run verify:unit` — lint → typecheck → unit（並列実装フェーズの中間確認専用。**完了判定には使わない**）
 - `npm test` / `npm run e2e` — 個別実行
 
 ## 参照すべきドキュメント（必要なときだけ読む）

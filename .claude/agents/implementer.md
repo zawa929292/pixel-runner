@@ -15,7 +15,7 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 e2e-tester と同時に動いている。E2E はまだ揃っていない前提で進める。
 1. `[unit]` の受入条件を Unit テストとして先に書く（テスト名に AC ID を含める）
 2. `src/core` → `src/scenes` の順に実装。`[e2e]` の AC が要求する入力・状態公開も実装する
-3. `npm run verify:unit`（lint + typecheck + unit）が green になるまで修正（最大 5 回）
+3. `npm run verify:unit`（lint + typecheck + unit）が green になるまで修正（最大 5 回）。これは中間確認であり、完了判定は合流後の `npm run verify`
 4. 返却: 結果（SUCCESS / ESCALATE）、変更ファイル、verify:unit の結果
 
 ## fix モード（合流後の修正）
