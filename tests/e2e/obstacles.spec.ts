@@ -1,28 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 import { PLAYER, WORLD } from '../../src/core/config';
-
-/**
- * E2E で参照する state の部分型（specs/GAM-2.md の GameState に対応）。
- * 実装と並行して書くため、GameState 型に依存せずここで必要なフィールドだけ定義する。
- */
-interface ObstacleSnapshot {
-  id: number;
-  x: number;
-  width: number;
-  height: number;
-}
-
-interface StateSnapshot {
-  status: 'ready' | 'playing' | 'gameover';
-  player: { x: number; y: number; onGround: boolean };
-  obstacles: ObstacleSnapshot[];
-}
+import type { Obstacle } from '../../src/core/obstacles';
+import type { GameState } from '../../src/core/state';
 
 /** spec の根拠: dt クランプで 10fps でも出現まで約 2 秒・衝突まで約 6.3 秒。poll 間隔 100ms */
 const POLL = { intervals: [100] };
 
-const getState = (page: Page): Promise<StateSnapshot | undefined> =>
-  page.evaluate(() => window.__GAME__?.getState() as unknown as StateSnapshot | undefined);
+const getState = (page: Page): Promise<GameState | undefined> =>
+  page.evaluate(() => window.__GAME__?.getState());
 
 async function startPlaying(page: Page): Promise<void> {
   await page.goto('/?test=1&seed=12345');
@@ -47,7 +32,7 @@ test('GAM-2 AC-24: 障害物が出現して左へ動く', async ({ page }) => {
 
   const first = (await getState(page))?.obstacles[0];
   expect(first).toBeDefined();
-  const { id, x: x0 } = first as ObstacleSnapshot;
+  const { id, x: x0 } = first as Obstacle;
 
   // 同じ id の障害物が記録時から 30px 以上左へ動く
   await expect
@@ -75,7 +60,7 @@ test('GAM-2 AC-25: 何もしなければ障害物に衝突して gameover にな
 
   const s = await getState(page);
   expect(s).toBeDefined();
-  const { player, obstacles } = s as StateSnapshot;
+  const { player, obstacles } = s as GameState;
 
   const pLeft = player.x;
   const pRight = player.x + PLAYER.width;

@@ -185,11 +185,14 @@ describe('step', () => {
         if (JSON.stringify(r) !== JSON.stringify(copy)) {
           expect(r).not.toBe(s);
           // AC-23 (GAM-2): playing・地上では spawnTimerMs など障害物まわりだけが変わるため、
-          // 変化したフィールドが少なくとも 1 つ入力と異なることを明示的に検証する
-          const changed = (Object.keys(copy) as (keyof GameState)[]).filter(
-            (k) => JSON.stringify(r[k]) !== JSON.stringify(copy[k]),
-          );
-          expect(changed.length).toBeGreaterThan(0);
+          // 変化したフィールドの少なくとも 1 つが入力と別の参照・値になっていることを検証する
+          expect(
+            r.player !== s.player || r.status !== s.status || r.obstacles !== s.obstacles || r.spawnTimerMs !== s.spawnTimerMs,
+          ).toBe(true);
+          if (s.status === 'playing') {
+            // playing では障害物タイマーが dt ぶん進む（このケースでは生成はまだ起きない）
+            expect(r.spawnTimerMs).toBe(s.spawnTimerMs - 16);
+          }
         }
       }
     }
