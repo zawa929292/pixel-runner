@@ -2,8 +2,8 @@
 
 ## 現在の状態
 - フェーズ: pr / ci-verify
-- 修正反復: 0 / 5
-- 直近の失敗シグネチャ: なし
+- 修正反復: 1 / 5
+- 直近の失敗シグネチャ: ci:security-review.yml:AC-16:InvalidJsonSchema
 
 ## ログ
 ### 2026-11-02 16:20 [orchestrator] 設計 (新規): 別ワークフロー security-review.yml（audit: claude-code-action + OAuth で JSON 出力 / gate: scripts/security-review/report.mjs で検証・投稿・HIGH で fail-closed）、ci.yml に npm-audit ジョブを追加。上流 0c6a49f のプロンプトと偽陽性フィルタを Markdown として抽出し、HardExclusionRules は JS に移植。AC-1〜18（unit 14 / ci 4）。canary PR で検出を確認。上流ファイルのパスは API で存在を確認済み。
@@ -14,3 +14,5 @@
 ### 2026-11-02 16:43 [implementer] fix: レビュー NEEDS_FIX の H1/M1/M3/L1/L3/L4/L5/L7 を修正 → verify green（unit 71 / e2e 4、修正反復 0 回で通過）。H1: normalizeFindingPath（`\`→`/`、先頭 `./` 除去、絶対パスは末尾一致する最長の changedFile に寄せる）を filterFindings の判定前に適用。M1: fingerprint の file/category を `[A-Za-z0-9_./-]` 以外 `_`・`--` を潰す、escapeHtmlComment に `--!>`。M3: sanitizeForComment と fingerprint でトークン形式を `[REDACTED]`。L1: report の checkout に persist-credentials: false。L3: 総評の上書き先を startsWith(MARK)。L4: changedFilesError（変更ファイル空かつ指摘あり→incomplete・exit 1）。L5: audit-prompt の wrapper（独自部分）を「checkout は refs/pull/N/merge のマージコミット」に訂正。L7: npm-audit に permissions: contents: read。既存 AC の期待値は不変、テストは追加のみ。M2・H1 の未一致 HIGH・L2・L6 は対応せず（人の判断待ち）。
 ### 2026-11-02 16:44 [reviewer] APPROVE（再レビュー 2 周目、6c45b7f）— high 0 / medium 0 / low 3。H1・M1・M3・L1・L3・L4・L5・L7 の修正で指摘箇所が塞がっていることを確認。新しい fail-open なし（正規化は誤って寄せても指摘を残す側＝fail-closed の方向にしか働かず、REDACTED は表示だけでゲート判定に影響しない。fingerprint の変更で重複防止は壊れていない）。修正を 1 つずつ戻すとテストが落ちることも確認した（H1・M1・M3・L4）。low: (1) 「最長一致」の条件を外してもテストが通る（changed の並びが最長一致と同じ結果になるため。['src/a.ts','a.ts'] の順にする） (2) 末尾一致を絶対パスにしか使っていないので、pixel-runner/src/main.ts のような相対パスの前置きはまだ「Not in PR diff」で落ちる (3) 伏せ字はトークンを空白や符号化で分割されると効かない（多層防御なので許容）。人の判断待ち（M2、正規化しても一致しない HIGH の扱い、L2、L6）は引き続き Linear で確認すること。
 ### 2026-11-02 17:20 [orchestrator] 品質改善 2 周目: reviewer APPROVE（high 0 / medium 0 / low 3: L-a 最長一致テストの並び、L-b 前置ディレクトリ付き相対パス、L-c 分割トークン）。low は PR に記載。人の判断待ち: M2、未一致 HIGH の扱い、L2、L6。PR 作成と [ci] AC-15〜18 の判定へ。
+### 2026-11-02 17:50 [orchestrator] PR #6 作成。AC-15 合格（保護対象ワークフロー・merge gate に差分なし、ci.yml は削除行なし）。AC-16 不合格: security-audit が `--json-schema is not a valid JSON Schema: no schema with key or ref "https://json-schema.org/draft/2020-12/schema"` で失敗 → security-gate は fail-closed で FAILURE（ゲートは正しく動作）。verify / npm-audit / review は pass。シグネチャ ci:security-review.yml:AC-16:InvalidJsonSchema、修正反復 1 回目として implementer に依頼。
+### 2026-11-02 17:10 [implementer] fix #1 (ci:security-review.yml:AC-16:InvalidJsonSchema): 仮説 = Claude Code のスキーマ検証器が `$schema: draft/2020-12` のメタスキーマを解決できない。findings.schema.json から `$schema` を削除（使用キーワードは title/type/properties/required/additionalProperties/items(オブジェクト形)/enum/minLength/minimum/maximum/description のみで draft-07 でも有効、他の修正不要）。再発防止に tests/unit/workflows.test.ts へ「2020-12 指定・$schema・シングルクォート・2020-12 固有キーワードがない」テストを追加。verify green（unit 72 / e2e 4）。spec の「JSON Schema（draft 2020-12）」の記述とは差分になる。

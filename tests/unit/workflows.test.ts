@@ -29,6 +29,19 @@ describe('GAM-7 ワークフローの静的な性質', () => {
     }
   });
 
+  it('AC-14 (回帰 InvalidJsonSchema): findings.schema.json は --json-schema に渡せる形（$schema の 2020-12 指定なし・シングルクォートなし）', () => {
+    const text = readFileSync(fileURLToPath(new URL('../../.github/security-review/findings.schema.json', import.meta.url)), 'utf8');
+    // Claude Code のスキーマ検証器は draft 2020-12 のメタスキーマを解決できず、監査が失敗した（PR #6）
+    expect(text).not.toContain('2020-12');
+    expect(JSON.parse(text)).not.toHaveProperty('$schema');
+    // claude_args は shell-quote で解析され、スキーマは '…' で囲んで渡すため
+    expect(text).not.toContain("'");
+    // 2020-12 固有のキーワードを使わない（draft-07 でも有効な範囲に留める）
+    for (const k of ['$defs', 'prefixItems', 'unevaluatedProperties', 'unevaluatedItems', 'dependentRequired', 'dependentSchemas', '$dynamicRef']) {
+      expect(text, k).not.toContain(`"${k}"`);
+    }
+  });
+
   it('AC-14 (d): ci.yml に npm audit があり、security-review.yml に PR タイトル・本文の式がない', () => {
     expect(read('ci.yml')).toContain('npm audit --audit-level=high');
     const text = read('security-review.yml');

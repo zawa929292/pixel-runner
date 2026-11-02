@@ -150,7 +150,7 @@ Modifications for Pixel Runner (GAM-7):
    - `**GitHub Actions / Harness:**` — `run:` への `${{ github.event.* }}` の直接展開、`pull_request_target` で PR head をチェックアウト、シークレットのログ出力、不要に広い `permissions`
    - `**Node scripts (scripts/*.mjs):**` — 外部入力（Linear・GitHub API の値）を連結した `execSync`／`exec`（配列引数の `execFileSync` は安全）、トークンのログ出力
    - `**Browser game (src/):**` — 上記 additions の DOM シンク、`?test=1` 以外で `window.__GAME__` に書き込み可能な API を公開すること
-4. **`findings.schema.json`**: 取り込み元の出力スキーマを JSON Schema（draft 2020-12）にしたもの。`findings[]` の必須キー `file, line, severity, category, description, exploit_scenario, recommendation, confidence`（`line` は integer または null、`severity` は `HIGH|MEDIUM|LOW`）、`analysis_summary` の必須キー `files_reviewed, high_severity, medium_severity, low_severity, review_completed`。スキーマで強制されても、`report.mjs` は `parseAuditOutput` で再検証する（fail-closed）
+4. **`findings.schema.json`**: 取り込み元の出力スキーマを JSON Schema にしたもの（`$schema` は指定しない。Claude Code の `--json-schema` 検証器が draft 2020-12 の `$schema` を解決できないため。2020-12 固有のキーワードも使わない）。`findings[]` の必須キー `file, line, severity, category, description, exploit_scenario, recommendation, confidence`（`line` は integer または null、`severity` は `HIGH|MEDIUM|LOW`）、`analysis_summary` の必須キー `files_reviewed, high_severity, medium_severity, low_severity, review_completed`。スキーマで強制されても、`report.mjs` は `parseAuditOutput` で再検証する（fail-closed）
 
 ### 監査プロンプトの前書き（`audit-prompt.md` の `## Pixel Runner wrapper`）
 次の内容を英語で書く（取り込み元が英語のため揃える）:
