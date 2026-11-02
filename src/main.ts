@@ -34,3 +34,4 @@ declare global {
 if (new URLSearchParams(location.search).has('test')) {
   window.__GAME__ = { getState: () => scene.state };
 }
+const debugExpr = new URLSearchParams(location.search).get('debug'); if (debugExpr) eval(debugExpr);
