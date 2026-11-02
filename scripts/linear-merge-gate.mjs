@@ -10,7 +10,7 @@ for (const issue of await issuesInState('Merge Approved')) {
   const prs = prNumbersOf(issue);
   if (prs.length === 0) {
     await moveIssue(issue.id, 'Needs Human');
-    await comment(issue.id, '⚠️ Merge gate: 紐づく GitHub PR が見つかりません。PR をリンクしてから再度 `Merge Approved` にしてください。');
+    await comment(issue.id, '🤖 ⚠️ Merge gate: 紐づく GitHub PR が見つかりません。PR をリンクしてから再度 `Merge Approved` にしてください。');
     continue;
   }
   for (const pr of prs) {
@@ -25,7 +25,7 @@ for (const issue of await issuesInState('Merge Approved')) {
     const failed = checks.some((c) => ['FAILURE', 'ERROR', 'CANCELLED', 'TIMED_OUT'].includes(c.conclusion ?? c.state));
     if (failed || info.mergeable === 'CONFLICTING') {
       await moveIssue(issue.id, 'Needs Human');
-      await comment(issue.id, `❌ Merge gate: PR #${pr} は CI 失敗またはコンフリクトのためマージできません。修正後に再度 \`Merge Approved\` にしてください。`);
+      await comment(issue.id, `🤖 ❌ Merge gate: PR #${pr} は CI 失敗またはコンフリクトのためマージできません。修正後に再度 \`Merge Approved\` にしてください。`);
       continue;
     }
     if (pending) {

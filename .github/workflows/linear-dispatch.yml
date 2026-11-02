@@ -34,8 +34,8 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             .claude/commands/implement.md の手順で Linear Issue ${{ steps.pick.outputs.issue }} を実装し PR を作成してください。
-            Issue はディスパッチャが既に `In Progress` に移動済みなので、事前チェックの状態確認は `In Progress` で可とします。
+            Issue はディスパッチャが `Approved` から `In Progress` に移動済みです。事前チェックでは new モードとして扱ってください。
           claude_args: |
             --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer ${{ secrets.LINEAR_API_KEY }}"}}}}'
-            --allowedTools "Read,Edit,Write,Grep,Glob,Task,mcp__linear,Bash(npm run *),Bash(npm test),Bash(npx *),Bash(git *),Bash(gh pr create:*),Bash(gh pr view:*)"
+            --allowedTools "Read,Edit,Write,Grep,Glob,Agent,Task,mcp__linear,Bash(npm run *),Bash(npm test),Bash(npx *),Bash(git *),Bash(gh pr create:*),Bash(gh pr view:*)"
             --max-turns 120
