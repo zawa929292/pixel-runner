@@ -6,6 +6,9 @@ block() { echo "BLOCKED by harness: $1 (CLAUDE.md の禁止事項を参照)" >&2
 
 [[ $cmd =~ git[[:space:]]+push.*(--force|[[:space:]]-f([[:space:]]|$)) ]] && block "force push は禁止"
 [[ $cmd =~ git[[:space:]]+push.*[[:space:]](origin[[:space:]]+)?(HEAD:)?main([[:space:]]|$) ]] && block "main への直接 push は禁止。PR を作成すること"
+if [[ $cmd =~ git[[:space:]]+push ]] && [[ $(git -C "${CLAUDE_PROJECT_DIR:-.}" branch --show-current 2>/dev/null) == main ]]; then
+  block "main ブランチ上での push は禁止。作業ブランチを作成すること"
+fi
 [[ $cmd =~ rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*f?[[:space:]]+(/|~|\$HOME)([[:space:]]|$) ]] && block "ルート/ホームの再帰削除"
 [[ $cmd =~ (^|[[:space:];|&])(cat|less|head|tail|source|\.)[[:space:]]+[^[:space:]]*\.env ]] && block ".env の読み取りは禁止"
 [[ $cmd =~ (it|describe|test)\.skip ]] && block "テストの skip による green 化は禁止"
