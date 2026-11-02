@@ -1,7 +1,7 @@
 # GAM-7 進捗ノート
 
 ## 現在の状態
-- フェーズ: pr / ci-verify
+- フェーズ: In Review（人の判断待ち）
 - 修正反復: 1 / 5
 - 直近の失敗シグネチャ: ci:security-review.yml:AC-16:InvalidJsonSchema
 
@@ -16,3 +16,9 @@
 ### 2026-11-02 17:20 [orchestrator] 品質改善 2 周目: reviewer APPROVE（high 0 / medium 0 / low 3: L-a 最長一致テストの並び、L-b 前置ディレクトリ付き相対パス、L-c 分割トークン）。low は PR に記載。人の判断待ち: M2、未一致 HIGH の扱い、L2、L6。PR 作成と [ci] AC-15〜18 の判定へ。
 ### 2026-11-02 17:50 [orchestrator] PR #6 作成。AC-15 合格（保護対象ワークフロー・merge gate に差分なし、ci.yml は削除行なし）。AC-16 不合格: security-audit が `--json-schema is not a valid JSON Schema: no schema with key or ref "https://json-schema.org/draft/2020-12/schema"` で失敗 → security-gate は fail-closed で FAILURE（ゲートは正しく動作）。verify / npm-audit / review は pass。シグネチャ ci:security-review.yml:AC-16:InvalidJsonSchema、修正反復 1 回目として implementer に依頼。
 ### 2026-11-02 17:10 [implementer] fix #1 (ci:security-review.yml:AC-16:InvalidJsonSchema): 仮説 = Claude Code のスキーマ検証器が `$schema: draft/2020-12` のメタスキーマを解決できない。findings.schema.json から `$schema` を削除（使用キーワードは title/type/properties/required/additionalProperties/items(オブジェクト形)/enum/minLength/minimum/maximum/description のみで draft-07 でも有効、他の修正不要）。再発防止に tests/unit/workflows.test.ts へ「2020-12 指定・$schema・シングルクォート・2020-12 固有キーワードがない」テストを追加。verify green（unit 72 / e2e 4）。spec の「JSON Schema（draft 2020-12）」の記述とは差分になる。
+### 2026-11-02 18:05 [orchestrator] 修正反復 1 回目の結果: `$schema` を削除して push → PR #6 の全チェック（verify / npm-audit / review / security-audit / security-gate）が SUCCESS。**AC-16 合格**。総評は PASS（HIGH 0）で、ハーネス変更の警告も表示。
+### 2026-11-02 18:10 [orchestrator] AC-17 canary PR #7（head `gam-7-security-canary`、base = GAM-7 ブランチ）作成。結果: npm-audit FAILURE ✅、verify SUCCESS ✅。しかし security-audit と既存の review が `Invalid branch name: "zawa929292/gam-7-harness-ci-にセキュリティ検査を追加（claude-code-security-review"` で失敗（claude-code-action が非 ASCII の base ブランチ名を拒否）。security-gate は fail-closed で FAILURE だが HIGH 検出ではないため AC-17 は未達。GAM-7 の実装の不具合ではなく環境制約。
+### 2026-11-02 18:15 [orchestrator] spec からの逸脱（記録）: Q12 の意図（main に入れない）は維持し、GAM-7 ブランチと同一コミット（e45221f）の ASCII 名コピー `gam-7-canary-base` を作り、PR #7 の base を付け替えて close→reopen で再実行。監査が一度も実行されていないため「初回の実行で判定」の趣旨には反しないと判断。注意: PR #7 はタイトルの GAM-7 により Linear の GAM-7 に自動リンクされている → AC-18 で close 後にリンクを外す。
+### 2026-11-02 18:25 [orchestrator] **AC-17 合格**（base 付け替え後の実行）: security-gate FAILURE、総評に HIGH 1 件（src/main.ts:37、category `dom_xss_code_injection`、eval に location.search）、inline コメントが eval の行（37 行目）に 1 件、npm-audit FAILURE（ログに high）、verify SUCCESS。
+### 2026-11-02 18:30 [orchestrator] **AC-18 合格**: PR #7 を未マージで close（state CLOSED、mergedAt null）、`gam-7-security-canary` と `gam-7-canary-base` をリモートから削除（ls-remote 空）、Linear の GAM-7 から PR #7 の自動リンクを削除。現時点の origin/main に `eval(` と lodash なし（GAM-7 マージ後に再確認する）。
+### 2026-11-02 18:30 [orchestrator] 発見事項: claude-code-action は非 ASCII の base ブランチ名を拒否する（既存の ai-review.yml も同様）。base が main の通常 PR には影響しないが、Linear の gitBranchName が日本語を含むため、スタック PR では AI レビューとセキュリティレビューが動かない。
