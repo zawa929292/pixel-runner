@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "verify": "npm run lint && npm run typecheck && npm run test && npm run e2e"
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run e2e",
+    "verify:unit": "npm run lint && npm run typecheck && npm run test"
   },
   "keywords": [],
   "author": "",

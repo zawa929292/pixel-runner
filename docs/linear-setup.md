@@ -49,11 +49,16 @@ Claude Code 内で `/mcp` → linear → Authenticate でブラウザ認証。
 repo → Settings → Pages → Source を **GitHub Actions** に設定。
 
 ## 人間の操作まとめ
-| やりたいこと | Linear での操作 |
-|---|---|
-| 開発を依頼 | Issue を起票し `ai-ready` ラベル |
-| 設計を承認 | `Design Review` → `Approved` |
-| 設計を差し戻し | コメントを書き `Planning` に戻す |
-| マージを承認 | `In Review` → `Merge Approved`（10 分以内に自動マージ・デプロイ） |
-| 実装を差し戻し | コメントを書き `In Progress` に戻す |
-| エスカレーション対応 | `Needs Human` のコメントを読み、指示をコメントして適切な状態へ戻す |
+AI のコメントは `🤖` で始まります。**あなたのコメントは `🤖` で始めないでください**（AI が「人の指示」として扱うため）。
+
+| やりたいこと | Linear での操作 | 次に AI がすること |
+|---|---|---|
+| 開発を依頼 | Issue を起票し `ai-ready` ラベル | `/plan-issue` で設計 |
+| 設計を承認 | `Design Review` → `Approved` | `/implement` で実装（new） |
+| 設計を差し戻し | コメントを書き `Planning` に移す | `/plan-issue` で再設計 |
+| マージを承認 | `In Review` → `Merge Approved` | 10 分以内に自動マージ・デプロイ |
+| 実装を差し戻し | コメントを書き `In Progress` に移す | `/implement` で差し戻し対応（rework）→ PR 更新 → `In Review` |
+| 設計からやり直し | コメントを書き `Planning` に移す | `/plan-issue` で再設計 → `Design Review` |
+| エスカレーション対応 | `Needs Human` のコメントを読み、指示をコメントして `In Progress`（実装から）か `Planning`（設計から）に移す | 指示に従い再開 |
+
+どの場合も Claude Code で `/next-issue` を実行すれば、AI が状態とコメントを見て適切な作業を選びます。
