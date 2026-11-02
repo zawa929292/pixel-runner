@@ -1,0 +1,26 @@
+name: Linear Notify
+# 人の対応が必要になった Linear Issue（Triage / Design Review / In Review / Needs Human）を Slack に通知する
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+concurrency: { group: linear-notify }
+permissions:
+  contents: read
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      # 前回実行時刻（カーソル）を Actions cache で引き継ぐ
+      - uses: actions/cache@v4
+        with:
+          path: .linear-notify-cursor
+          key: linear-notify-cursor-${{ github.run_id }}
+          restore-keys: linear-notify-cursor-
+      - run: node scripts/linear-notify.mjs .linear-notify-cursor
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -22,3 +22,12 @@ jobs:
         with: { path: dist }
       - id: deployment
         uses: actions/deploy-pages@v4
+      - if: success()
+        run: node scripts/slack.mjs "🚀 *デプロイ完了* — $PAGE_URL"
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - if: failure()
+        run: node scripts/slack.mjs "🔥 *デプロイ失敗* — $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
