@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { WORLD } from './core/config';
 import type { GameState } from './core/state';
+import { createHighScoreStore } from './highScoreStore';
 import { GameScene } from './scenes/GameScene';
 
 /** uint32 の値の個数（2^32）。シードをランダムに作るときの範囲 */
@@ -13,7 +14,9 @@ function readSeed(): number {
   return Math.floor(Math.random() * UINT32_RANGE);
 }
 
-const scene = new GameScene(readSeed());
+// window.localStorage の参照自体が例外を投げうるので関数の中で行い、例外はアダプタが握りつぶす
+const store = createHighScoreStore(() => window.localStorage);
+const scene = new GameScene(readSeed(), store);
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -26,11 +29,11 @@ new Phaser.Game({
 
 declare global {
   interface Window {
-    __GAME__?: { getState: () => GameState };
+    __GAME__?: { getState: () => GameState; getHudText: () => string };
   }
 }
 
 // E2E テスト用に状態を公開する（?test=1 のときのみ）
 if (new URLSearchParams(location.search).has('test')) {
-  window.__GAME__ = { getState: () => scene.state };
+  window.__GAME__ = { getState: () => scene.state, getHudText: () => scene.hudText };
 }
