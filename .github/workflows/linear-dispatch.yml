@@ -1,9 +1,10 @@
 name: Linear Dispatch (Phase 2)
 # Linear で `Approved` + `ai-ready` の Issue を検知し、Actions 上の Claude が実装して PR を作る。
-# Phase 1 の運用が安定するまで schedule はコメントアウトし、手動実行のみ。
+# 1 時間ごとに 1 件だけ処理する（毎時 0 分の混雑を避けて 17 分に実行。GitHub の cron はベストエフォート）。
+# 手動実行（workflow_dispatch）も可。
 on:
-  # schedule:
-  #   - cron: '*/15 * * * *'
+  schedule:
+    - cron: '17 * * * *'
   workflow_dispatch:
 concurrency: { group: linear-dispatch }
 permissions:
