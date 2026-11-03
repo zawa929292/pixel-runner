@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { OBSTACLE, PHYSICS, PLAYER, RANDOM, SCROLL, WORLD } from '../../src/core/config';
+import { OBSTACLE, PHYSICS, PLAYER, RANDOM, SCORE, SCROLL, WORLD } from '../../src/core/config';
 import type { Obstacle } from '../../src/core/obstacles';
+import { scoreFromDistance } from '../../src/core/score';
 import { createInitialState, startGame, step, type GameInput, type GameState } from '../../src/core/state';
 
 describe('state', () => {
@@ -445,5 +446,224 @@ describe('GAM-2 step（障害物・衝突・シード）', () => {
         }
       }
     }
+  });
+});
+
+describe('GAM-3 step（スコア・ハイスコア）', () => {
+  const S = SCROLL.initialSpeed;
+  const P = SCORE.pxPerPoint;
+  const D = SCORE.hudDigits;
+  const MAXD = 10 ** D - 1;
+  const W = OBSTACLE.width;
+  const HMIN = OBSTACLE.minHeight;
+  const FIRST = OBSTACLE.firstSpawnDelayMs;
+  const SX = OBSTACLE.spawnX;
+  const PR = PLAYER.x + PLAYER.width;
+  const T0 = FIRST + ((SX - PR) / S) * 1000;
+  const TEN_SECONDS = 10000;
+
+  /** 自動生成を止めた playing・地上の state */
+  const noSpawn = (obstacles: Obstacle[], overrides: Partial<GameState> = {}): GameState => ({
+    ...createInitialState(),
+    status: 'playing',
+    spawnTimerMs: 1e9,
+    obstacles,
+    ...overrides,
+  });
+
+  const repeat = (pattern: number[], times: number): number[] => Array.from({ length: times }, () => pattern).flat();
+  const runDts = (state: GameState, dts: number[]): GameState => dts.reduce((st, dt) => step(st, NO_INPUT, dt), state);
+
+  /** GAM-2 AC-13 と同じ「接触直前」の state に distance = 500 を加えたもの */
+  const beforeContact = (highScore: number): GameState =>
+    noSpawn([{ id: 1, x: PR + (S * 10) / 1000, width: W, height: HMIN }], { distance: 500, highScore });
+
+  it('AC-5: playing 中は scrollSpeed × dt ぶん距離が増え、score は scoreFromDistance(distance)', () => {
+    for (const dt of [10, 16, 1000 / 60, MAXDT]) {
+      const r = step(noSpawn([], { distance: 0, score: 0 }), NO_INPUT, dt);
+      expect(Math.abs(r.distance - (S * dt) / 1000)).toBeLessThanOrEqual(1e-9);
+      expect(r.score).toBe(scoreFromDistance(r.distance));
+      expect(r.status).toBe('playing');
+    }
+  });
+
+  it('AC-6: 距離の積算には state.scrollSpeed を使う', () => {
+    const r = step(noSpawn([], { scrollSpeed: 2 * S }), NO_INPUT, 16);
+    expect(Math.abs(r.distance - (2 * S * 16) / 1000)).toBeLessThanOrEqual(1e-9);
+  });
+
+  it('AC-7: ジャンプ中も距離が増え、入力に依存しない', () => {
+    const s = noSpawn([]);
+    const a = step(s, JUMP, 16);
+    const b = step(s, NO_INPUT, 16);
+    expect(a.player.onGround).toBe(false);
+    expect(a.distance).toBe(b.distance);
+    expect(a.score).toBe(b.score);
+    expect(a.distance).toBeGreaterThan(0);
+  });
+
+  it('AC-8: 距離はクランプ後の dt で積算する', () => {
+    const s = noSpawn([]);
+    const big = step(s, NO_INPUT, 1000);
+    const max = step(s, NO_INPUT, MAXDT);
+    expect(big.distance).toBe(max.distance);
+    expect(Math.abs(max.distance - (S * MAXDT) / 1000)).toBeLessThanOrEqual(1e-9);
+  });
+
+  it('AC-9: dt の分割方法によらず 3000ms 後の距離・スコアが一致する', () => {
+    const exact = [repeat([10], 300), repeat([20], 150), repeat([50], 60), repeat([5, 45, 30, 20, 50, 50], 15)];
+    for (const dts of exact) {
+      expect(dts.reduce((a, b) => a + b, 0)).toBe(3000);
+      const r = runDts(startGame(createInitialState(12345)), dts);
+      expect(r.status).toBe('playing');
+      expect(Math.abs(r.distance - (S * 3000) / 1000)).toBeLessThanOrEqual(1e-6);
+      expect(r.score).toBe(Math.round((S * 3000) / 1000 / P));
+    }
+    // 1000/60 × 180 は合計が厳密に 3000 にならないので、実際の合計から期待値を計算する
+    const dts60 = repeat([1000 / 60], 180);
+    const sum = dts60.reduce((a, b) => a + b, 0);
+    expect(Math.abs(sum - 3000)).toBeLessThanOrEqual(1e-6);
+    const r = runDts(startGame(createInitialState(12345)), dts60);
+    expect(r.status).toBe('playing');
+    expect(Math.abs(r.distance - (S * sum) / 1000)).toBeLessThanOrEqual(1e-6);
+    expect(r.score).toBe(scoreFromDistance((S * sum) / 1000));
+    expect(r.score).toBe(Math.round((S * 3000) / 1000 / P));
+  });
+
+  it('AC-10: ready / gameover では距離・スコア・ハイスコアが変わらない', () => {
+    const ready = createInitialState(1, 50);
+    let s = ready;
+    for (let i = 0; i < 100; i++) {
+      const r = step(s, NO_INPUT, 16);
+      expect(r).toEqual(s);
+      s = r;
+    }
+    const over: GameState = { ...createInitialState(1, 50), status: 'gameover', distance: 945, score: 94 };
+    s = over;
+    for (let i = 0; i < 100; i++) {
+      const r = step(s, i % 2 === 0 ? NO_INPUT : JUMP, 16);
+      expect(r).toEqual(s);
+      s = r;
+    }
+  });
+
+  it('AC-11: ready → playing の遷移フレームでは距離を進めない', () => {
+    const r = step(createInitialState(1, 50), JUMP, 16);
+    expect(r.status).toBe('playing');
+    expect(r.distance).toBe(0);
+    expect(r.score).toBe(0);
+    expect(r.highScore).toBe(50);
+  });
+
+  it('AC-12: プレイ中はスコアがハイスコアを上回ってもハイスコアを更新しない', () => {
+    let s = noSpawn([], { highScore: 3, distance: 10 * P, score: scoreFromDistance(10 * P) });
+    for (let i = 0; i < 10; i++) {
+      s = step(s, NO_INPUT, 16);
+      expect(s.status).toBe('playing');
+      expect(s.score).toBeGreaterThan(s.highScore);
+      expect(s.highScore).toBe(3);
+    }
+  });
+
+  it('AC-13: 衝突フレームの移動ぶんも距離に含め、gameover 遷移時に max でハイスコアを更新する', () => {
+    const d = (S * 10) / 1000;
+    for (const [hi, expectHi] of [
+      [0, (score: number) => score],
+      [MAXD, () => MAXD],
+    ] as [number, (score: number) => number][]) {
+      const s0 = beforeContact(hi);
+      const s1 = step(s0, NO_INPUT, 10);
+      expect(s1.status).toBe('playing');
+      expect(Math.abs(s1.distance - (500 + d))).toBeLessThanOrEqual(1e-9);
+      expect(s1.highScore).toBe(hi);
+      const s2 = step(s1, NO_INPUT, 10);
+      expect(s2.status).toBe('gameover');
+      expect(Math.abs(s2.distance - (500 + 2 * d))).toBeLessThanOrEqual(1e-9);
+      expect(s2.score).toBe(scoreFromDistance(s2.distance));
+      expect(s2.highScore).toBe(expectHi(s2.score));
+    }
+  });
+
+  it('AC-14: 通しで gameover のフレームにだけハイスコアが更新され、以降は変わらない', () => {
+    for (const dt of [1000 / 60, 50]) {
+      let s = startGame(createInitialState(12345, 0));
+      let frames = 0;
+      while (s.status !== 'gameover' && frames * dt < TEN_SECONDS) {
+        expect(s.highScore).toBe(0);
+        s = step(s, NO_INPUT, dt);
+        frames++;
+      }
+      expect(s.status).toBe('gameover');
+      expect(s.highScore).toBe(s.score);
+      const elapsed = frames * dt;
+      expect(Math.abs(s.distance - (S * elapsed) / 1000)).toBeLessThanOrEqual(1e-6);
+      expect(elapsed).toBeGreaterThan(T0);
+      expect(elapsed).toBeLessThanOrEqual(T0 + dt + 1e-6);
+      expect(s.score).toBeGreaterThanOrEqual(Math.floor((S * T0) / 1000 / P));
+      expect(s.score).toBeLessThanOrEqual(Math.floor((S * (T0 + MAXDT)) / 1000 / P));
+      const over = s;
+      for (let i = 0; i < 10; i++) {
+        s = step(s, i % 2 === 0 ? NO_INPUT : JUMP, dt);
+        expect(s.highScore).toBe(over.highScore);
+        expect(s.score).toBe(over.score);
+        expect(s.distance).toBe(over.distance);
+      }
+    }
+  });
+
+  it('AC-15: createInitialState は距離・スコアを 0 にし、ハイスコアを正規化する', () => {
+    const cases: [GameState, number][] = [
+      [createInitialState(), 0],
+      [createInitialState(7), 0],
+      [createInitialState(7, 123), 123],
+      [createInitialState(7, -1), 0],
+      [createInitialState(7, Number.NaN), 0],
+      [createInitialState(7, 1.5), 0],
+    ];
+    for (const [s, hi] of cases) {
+      expect(s.distance).toBe(0);
+      expect(s.score).toBe(0);
+      expect(s.highScore).toBe(hi);
+      expect(s.status).toBe('ready');
+      expect(s.obstacles).toEqual([]);
+      expect(s.spawnTimerMs).toBe(FIRST);
+      expect(s.nextObstacleId).toBe(1);
+      expect(s.scrollSpeed).toBe(S);
+    }
+    expect(createInitialState().rngSeed).toBe(RANDOM.defaultSeed);
+    expect(createInitialState(7, 123).rngSeed).toBe(7);
+  });
+
+  it('AC-16: startGame はシードとハイスコアを引き継ぎ、距離・スコアを 0 にする', () => {
+    const s: GameState = { ...createInitialState(777, 10), status: 'gameover', distance: 950, score: 95, highScore: 95 };
+    const r = startGame(s);
+    expect(r.status).toBe('playing');
+    expect(r.rngSeed).toBe(777);
+    expect(r.highScore).toBe(95);
+    expect(r.distance).toBe(0);
+    expect(r.score).toBe(0);
+  });
+
+  it('AC-17: step は入力 state を書き換えず、別参照で距離の変わった state を返す', () => {
+    const s = noSpawn([], { distance: 100 });
+    for (const input of [NO_INPUT, JUMP]) {
+      const copy = structuredClone(s);
+      const r = step(s, input, 16);
+      expect(s).toEqual(copy);
+      expect(r).not.toBe(s);
+      expect(r.distance).not.toBe(s.distance);
+    }
+    const s0 = beforeContact(0);
+    const copy0 = structuredClone(s0);
+    const s1 = step(s0, NO_INPUT, 10);
+    expect(s0).toEqual(copy0);
+    expect(s1).not.toBe(s0);
+    expect(s1.distance).not.toBe(s0.distance);
+    const copy1 = structuredClone(s1);
+    const s2 = step(s1, NO_INPUT, 10);
+    expect(s1).toEqual(copy1);
+    expect(s2).not.toBe(s1);
+    expect(s2.distance).not.toBe(s1.distance);
+    expect(s2.status).toBe('gameover');
   });
 });

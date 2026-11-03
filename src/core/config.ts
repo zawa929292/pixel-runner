@@ -44,3 +44,18 @@ export const RANDOM = {
   /** createInitialState にシードを渡さなかったときの既定値 */
   defaultSeed: 1,
 } as const;
+
+export const SCORE = {
+  /** 走行距離 [px] をスコア 1 点に換算する量。300 px/s で 30 点/秒 */
+  pxPerPoint: 10,
+  /** scoreFromDistance の floor で、浮動小数誤差により境界をわずかに下回るのを吸収する量 [点] */
+  floorEpsilon: 1e-6,
+  /** HUD に表示する桁数（ゼロ埋め）。超えたら 10^digits - 1 で頭打ち */
+  hudDigits: 5,
+} as const;
+
+export const HUD = {
+  /** 画面右上からの余白 [px] */
+  marginPx: 16,
+  fontSizePx: 20,
+} as const;
