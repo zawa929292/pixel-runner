@@ -57,10 +57,11 @@ jobs:
       contents: read
       pull-requests: write
     steps:
+      # cone モードではリポジトリ直下のファイル（.nvmrc）も取得される
       - uses: actions/checkout@v4
         with: { sparse-checkout: scripts/security-review, persist-credentials: false }
       - uses: actions/setup-node@v4
-        with: { node-version: 22 }
+        with: { node-version-file: .nvmrc }
       - uses: actions/download-artifact@v4
         continue-on-error: true
         with: { name: security-findings }

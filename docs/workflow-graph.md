@@ -54,6 +54,8 @@ Linear MCP は人のアカウントで動くため、投稿者では区別でき
 **AI のコメントは必ず `🤖` で始める**。最新の `🤖` コメントより新しい、`🤖` で始まらないコメントを「未対応の人の指示」とみなす。
 
 ## PR 上の自動チェック
+全ワークフローの Node は `.nvmrc` で決める（setup-node の `node-version-file`）。直書きの `node-version:` は `tests/unit/node-version.test.ts` が検出する。
+
 PR ごとに次のチェックが並列に走る。merge-gate（`scripts/linear-merge-gate.mjs`）は失敗したチェックがあると自動マージせず `Needs Human` にする。
 
 | チェック | ワークフロー | 失敗条件 | 失敗時 |

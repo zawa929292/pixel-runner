@@ -23,6 +23,7 @@ Linear(人)          Claude Code(AI)                     GitHub Actions(自動)
 | ハーネス | `.claude/settings.json`（permissions/hooks）、Vitest/Playwright/ESLint、CI |
 
 ## はじめに
+Node 22（バージョンは `.nvmrc`。nvm なら `nvm use`）。`package.json` の `engines` は `^22.13.0` で、`.npmrc` の `engine-strict=true` により範囲外の Node では `npm ci` が失敗する。
 ```bash
 npm ci
 npx playwright install chromium
